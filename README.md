@@ -1,3 +1,14 @@
+---
+title: RAG Chatbot for Google Drive
+emoji: 🤖
+colorFrom: blue
+colorTo: purple
+sdk: docker
+app_file: app.py
+pinned: false
+---
+
+
 # RAG Chatbot for Google Drive
 
 A Retrieval-Augmented Generation (RAG) chatbot that answers questions based on documents stored in Google Drive. Built with Streamlit and powered by Google Gemini AI.
