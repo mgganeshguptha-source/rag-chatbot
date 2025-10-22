@@ -1,14 +1,3 @@
----
-title: RAG Chatbot for Google Drive
-emoji: 🤖
-colorFrom: blue
-colorTo: purple
-sdk: docker
-app_file: app.py
-pinned: false
----
-
-
 # RAG Chatbot for Google Drive
 
 A Retrieval-Augmented Generation (RAG) chatbot that answers questions based on documents stored in Google Drive. Built with Streamlit and powered by Google Gemini AI.
@@ -106,7 +95,7 @@ Future support planned for:
 1. **Document Loading**: Connects to Google Drive and retrieves all `.txt` files from the specified folder
 2. **Text Chunking**: Splits documents into manageable chunks with overlap for better context
 3. **Query Processing**: When you ask a question, the system searches for relevant chunks using keyword matching
-4. **Response Generation**: Sends the relevant context to Gemini AI to generate an accurate answer
+4. **Response Generation**: Sends the relevant context to Gemini AI (with automatic retry on temporary failures) to generate an accurate answer
 5. **Source Attribution**: Shows which documents were used to answer your question
 
 ## Architecture
@@ -164,6 +153,14 @@ Response with Source Attribution
 2. The JSON should start with `{` and end with `}`
 3. Do not modify the JSON structure
 
+### Gemini API Overload Error
+**Error**: `503 UNAVAILABLE - The model is overloaded`
+
+**Solution**:
+- The application automatically retries up to 3 times with exponential backoff
+- If the error persists, wait a few moments and try again
+- The stable `gemini-1.5-flash` model is used for better reliability
+
 ## Development Roadmap
 
 ### Phase 1 (MVP) ✅
@@ -187,7 +184,7 @@ Response with Source Attribution
 ## Technologies Used
 
 - **Frontend**: Streamlit
-- **LLM**: Google Gemini AI (gemini-2.0-flash-exp)
+- **LLM**: Google Gemini AI (gemini-1.5-flash with retry logic)
 - **Cloud Storage**: Google Drive API
 - **Authentication**: Google Service Account
 - **Language**: Python 3.11+

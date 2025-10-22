@@ -1,5 +1,6 @@
 import os
 import re
+import time
 from typing import List, Dict, Optional
 from google import genai
 from google.genai import types
@@ -192,13 +193,29 @@ User question: {query}
 
 Please provide a helpful and accurate answer based only on the information provided in the context. If you use specific information from the context, be precise and factual."""
             
-            # Generate response using Gemini
-            response = self.gemini_client.models.generate_content(
-                model="gemini-2.0-flash-exp",
-                contents=prompt
-            )
+            # Generate response using Gemini with retry logic
+            max_retries = 3
+            retry_delay = 1
+            response = None
             
-            if not response.text:
+            for attempt in range(max_retries):
+                try:
+                    response = self.gemini_client.models.generate_content(
+                        model="gemini-1.5-flash",
+                        contents=prompt
+                    )
+                    break
+                except Exception as e:
+                    error_str = str(e)
+                    if "503" in error_str or "UNAVAILABLE" in error_str or "overloaded" in error_str.lower():
+                        if attempt < max_retries - 1:
+                            print(f"⚠️ Gemini API temporarily unavailable (attempt {attempt + 1}/{max_retries}), retrying in {retry_delay}s...")
+                            time.sleep(retry_delay)
+                            retry_delay *= 2
+                            continue
+                    raise
+            
+            if not response or not response.text:
                 return "No relevant information found in the source."
             
             # Add source information
