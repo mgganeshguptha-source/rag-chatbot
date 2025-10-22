@@ -1,35 +1,92 @@
 import streamlit as st
 import os
+import sys
 from typing import List, Dict, Optional
 
-from drive_service import GoogleDriveService
-from rag_pipeline import RAGPipeline
-from config import Config
+print("=" * 50, file=sys.stderr)
+print("STARTUP DEBUG: app.py loading...", file=sys.stderr)
+print("=" * 50, file=sys.stderr)
+
+try:
+    print("DEBUG: Importing config...", file=sys.stderr)
+    from config import Config
+    print("DEBUG: Config imported successfully", file=sys.stderr)
+    
+    print("DEBUG: Importing drive_service...", file=sys.stderr)
+    from drive_service import GoogleDriveService
+    print("DEBUG: drive_service imported successfully", file=sys.stderr)
+    
+    print("DEBUG: Importing rag_pipeline...", file=sys.stderr)
+    from rag_pipeline import RAGPipeline
+    print("DEBUG: rag_pipeline imported successfully", file=sys.stderr)
+    
+except Exception as e:
+    print(f"DEBUG: Import error: {str(e)}", file=sys.stderr)
+    import traceback
+    traceback.print_exc(file=sys.stderr)
+    raise
 
 # Page configuration
+print("DEBUG: Setting page config...", file=sys.stderr)
 st.set_page_config(
     page_title="RAG Chatbot for Google Drive",
     page_icon="🤖",
     layout="centered",
     initial_sidebar_state="collapsed"
 )
+print("DEBUG: Page config set", file=sys.stderr)
 
-# Initialize services
+# Initialize services with error handling
 @st.cache_resource
 def get_config():
-    return Config()
+    print("DEBUG: get_config() called", file=sys.stderr)
+    try:
+        config = Config()
+        print(f"DEBUG: Config created, is_configured={config.is_configured}", file=sys.stderr)
+        return config
+    except Exception as e:
+        print(f"DEBUG: Error in get_config: {str(e)}", file=sys.stderr)
+        import traceback
+        traceback.print_exc(file=sys.stderr)
+        raise
 
 @st.cache_resource
 def get_drive_service(folder_id):
-    return GoogleDriveService(folder_id)
+    print(f"DEBUG: get_drive_service() called with folder_id={folder_id}", file=sys.stderr)
+    try:
+        service = GoogleDriveService(folder_id)
+        print("DEBUG: GoogleDriveService created successfully", file=sys.stderr)
+        return service
+    except Exception as e:
+        print(f"DEBUG: Error in get_drive_service: {str(e)}", file=sys.stderr)
+        import traceback
+        traceback.print_exc(file=sys.stderr)
+        raise
 
 @st.cache_resource
 def get_rag_pipeline(api_key):
-    return RAGPipeline(api_key)
+    print(f"DEBUG: get_rag_pipeline() called", file=sys.stderr)
+    try:
+        pipeline = RAGPipeline(api_key)
+        print("DEBUG: RAGPipeline created successfully", file=sys.stderr)
+        return pipeline
+    except Exception as e:
+        print(f"DEBUG: Error in get_rag_pipeline: {str(e)}", file=sys.stderr)
+        import traceback
+        traceback.print_exc(file=sys.stderr)
+        raise
 
+print("DEBUG: Creating config...", file=sys.stderr)
 config = get_config()
+print(f"DEBUG: Config created, proceeding to drive service...", file=sys.stderr)
+
+print("DEBUG: Creating drive service...", file=sys.stderr)
 drive_service = get_drive_service(config.google_drive_folder_id)
+print("DEBUG: Drive service created, proceeding to RAG pipeline...", file=sys.stderr)
+
+print("DEBUG: Creating RAG pipeline...", file=sys.stderr)
 rag_pipeline = get_rag_pipeline(config.gemini_api_key)
+print("DEBUG: RAG pipeline created successfully", file=sys.stderr)
 
 # Initialize session state
 if 'messages' not in st.session_state:
@@ -111,3 +168,5 @@ if prompt := st.chat_input("Ask a question about your documents..."):
 # Footer
 st.divider()
 st.caption("🤖 RAG Chatbot powered by Google Gemini AI | Built on Replit")
+
+print("DEBUG: app.py loaded successfully", file=sys.stderr)
