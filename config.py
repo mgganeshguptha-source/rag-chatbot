@@ -9,6 +9,10 @@ class Config:
         self.google_service_account_key = self._get_env_var("GOOGLE_SERVICE_ACCOUNT_KEY")
         self.google_drive_folder_id = self._get_env_var("GOOGLE_DRIVE_FOLDER_ID")
         
+        # Feature flags with defaults
+        use_extended = self._get_env_var("USE_EXTENDED_KNOWLEDGE", "true")
+        self.use_extended_knowledge = use_extended.lower() in ['true', '1', 'yes']
+        
         # Validate required configuration
         self._validate_config()
     

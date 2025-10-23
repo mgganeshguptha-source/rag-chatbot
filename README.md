@@ -8,8 +8,10 @@ A Retrieval-Augmented Generation (RAG) chatbot that answers questions based on d
 - 📁 **Google Drive Integration**: Securely connects to your specified Google Drive folder
 - 🔍 **Smart Document Search**: Uses keyword-based retrieval to find relevant information
 - 💬 **Context-Aware Responses**: Generates answers based on document content using Gemini AI
-- 🎯 **Source Attribution**: Shows which documents were used to generate each answer
+- 🎯 **Source Attribution**: Shows which documents were used to generate each answer (📄 for Drive, 🌐 for general knowledge)
+- 🌐 **Extended Knowledge**: Automatically falls back to Gemini's general knowledge when Drive documents don't contain the answer
 - ⚡ **Auto-Initialize**: Automatically loads documents on startup
+- 🔄 **Retry Logic**: Automatic retry mechanism for handling temporary API failures
 
 ## Prerequisites
 
@@ -65,9 +67,12 @@ Set the following environment variables in your Replit Secrets or `.env` file:
 GEMINI_API_KEY=your_gemini_api_key_here
 GOOGLE_DRIVE_FOLDER_ID=your_folder_id_here
 GOOGLE_SERVICE_ACCOUNT_KEY={"type":"service_account","project_id":"..."}
+USE_EXTENDED_KNOWLEDGE=true  # Optional: Enable/disable extended knowledge (default: true)
 ```
 
 **Note**: For `GOOGLE_SERVICE_ACCOUNT_KEY`, paste the **entire JSON contents** from the service account key file you downloaded.
+
+**Extended Knowledge**: When enabled (default), the chatbot automatically falls back to Gemini's general knowledge if your Drive documents don't contain relevant information. Set to `false` to restrict answers to Drive documents only.
 
 ### 5. Run the Application
 
@@ -95,8 +100,11 @@ Future support planned for:
 1. **Document Loading**: Connects to Google Drive and retrieves all `.txt` files from the specified folder
 2. **Text Chunking**: Splits documents into manageable chunks with overlap for better context
 3. **Query Processing**: When you ask a question, the system searches for relevant chunks using keyword matching
-4. **Response Generation**: Sends the relevant context to Gemini AI (with automatic retry on temporary failures) to generate an accurate answer
-5. **Source Attribution**: Shows which documents were used to answer your question
+4. **Smart Routing**: 
+   - If Drive documents contain relevant information (relevance score > 0.4), uses Drive context
+   - If Drive lacks relevant information, automatically falls back to Gemini's general knowledge
+5. **Response Generation**: Sends context to Gemini AI (with automatic retry on temporary failures) to generate an accurate answer
+6. **Source Attribution**: Shows which documents were used (📄 for Drive sources, 🌐 for general knowledge)
 
 ## Architecture
 
@@ -105,11 +113,19 @@ User Question
     ↓
 Keyword-based Retrieval (finds relevant document chunks)
     ↓
-Context Preparation (top 3 most relevant chunks)
+Relevance Scoring (filters chunks with score > 0.4)
     ↓
-Gemini AI (generates answer based on context)
-    ↓
-Response with Source Attribution
+    ├─── Drive has relevant info? ──YES──> Use Drive context
+    │                                      ↓
+    │                                   Gemini AI (Drive-based answer)
+    │                                      ↓
+    │                                   Response with 📄 Drive attribution
+    │
+    └─── No relevant Drive info? ──YES──> Use general knowledge
+                                           ↓
+                                        Gemini AI (general knowledge)
+                                           ↓
+                                        Response with 🌐 note
 ```
 
 ## Project Structure
@@ -157,9 +173,9 @@ Response with Source Attribution
 **Error**: `503 UNAVAILABLE - The model is overloaded`
 
 **Solution**:
-- The application automatically retries up to 3 times with exponential backoff
+- The application automatically retries up to 3 times with exponential backoff (1s, 2s, 4s delays)
 - If the error persists, wait a few moments and try again
-- The stable `gemini-1.5-flash` model is used for better reliability
+- The `gemini-2.0-flash-exp` model is used with built-in retry logic
 
 ## Development Roadmap
 
@@ -170,8 +186,8 @@ Response with Source Attribution
 - [x] Text file support (.txt)
 - [x] Source attribution
 
-### Phase 2 (Planned)
-- [ ] Extended knowledge retrieval (use Gemini's knowledge when Drive lacks info)
+### Phase 2 (In Progress)
+- [x] Extended knowledge retrieval (use Gemini's knowledge when Drive lacks info) ✅
 - [ ] OpenAI validation agent
 - [ ] "Use only Google Drive" command support
 
@@ -184,7 +200,7 @@ Response with Source Attribution
 ## Technologies Used
 
 - **Frontend**: Streamlit
-- **LLM**: Google Gemini AI (gemini-1.5-flash with retry logic)
+- **LLM**: Google Gemini AI (gemini-2.0-flash-exp with retry logic and extended knowledge)
 - **Cloud Storage**: Google Drive API
 - **Authentication**: Google Service Account
 - **Language**: Python 3.11+

@@ -64,10 +64,10 @@ def get_drive_service(folder_id):
         raise
 
 @st.cache_resource
-def get_rag_pipeline(api_key):
+def get_rag_pipeline(api_key, use_extended_knowledge=True):
     print(f"DEBUG: get_rag_pipeline() called", file=sys.stderr)
     try:
-        pipeline = RAGPipeline(api_key)
+        pipeline = RAGPipeline(api_key, use_extended_knowledge=use_extended_knowledge)
         print("DEBUG: RAGPipeline created successfully", file=sys.stderr)
         return pipeline
     except Exception as e:
@@ -85,7 +85,7 @@ drive_service = get_drive_service(config.google_drive_folder_id)
 print("DEBUG: Drive service created, proceeding to RAG pipeline...", file=sys.stderr)
 
 print("DEBUG: Creating RAG pipeline...", file=sys.stderr)
-rag_pipeline = get_rag_pipeline(config.gemini_api_key)
+rag_pipeline = get_rag_pipeline(config.gemini_api_key, config.use_extended_knowledge)
 print("DEBUG: RAG pipeline created successfully", file=sys.stderr)
 
 # Initialize session state

@@ -64,3 +64,72 @@ logs/
 credentials.json
 token.json
 client_secret*.json
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environments
+venv/
+ENV/
+env/
+.venv
+
+# Environment Variables
+.env
+.env.local
+*.key
+*.pem
+
+# Streamlit
+.streamlit/secrets.toml
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Replit
+.replit
+replit.nix
+.config/
+.cache/
+.upm/
+uv.lock
+
+# Logs
+*.log
+logs/
+/tmp/
+
+# Credentials (IMPORTANT!)
+*service_account*.json
+credentials.json
+token.json
+client_secret*.json
+
+# Attached Assets (may contain sensitive data)
+attached_assets/
