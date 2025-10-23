@@ -88,23 +88,27 @@ The application will:
 
 ## Supported File Types
 
-Currently supports:
+✅ **Currently supports:**
 - `.txt` files (plain text)
+- `.pdf` files (text-based PDFs)
+- `.jpg/.jpeg` files (images with text via OCR)
 
-Future support planned for:
-- `.pdf` files (Phase 3)
-- `.jpg` images via OCR (Phase 3)
+⚠️ **Note**: Image-based/scanned PDFs are not yet supported. Only text-based PDFs work currently.
 
 ## How It Works
 
-1. **Document Loading**: Connects to Google Drive and retrieves all `.txt` files from the specified folder
-2. **Text Chunking**: Splits documents into manageable chunks with overlap for better context
-3. **Query Processing**: When you ask a question, the system searches for relevant chunks using keyword matching
-4. **Smart Routing**: 
+1. **Document Loading**: Connects to Google Drive and retrieves all supported files (TXT, PDF, JPG) from the specified folder
+2. **Text Extraction**: 
+   - TXT files: Direct UTF-8/Latin-1 decoding
+   - PDF files: Text extraction using pypdf library
+   - JPG files: OCR text extraction using pytesseract
+3. **Text Chunking**: Splits documents into manageable chunks with overlap for better context
+4. **Query Processing**: When you ask a question, the system searches for relevant chunks using keyword matching
+5. **Smart Routing**: 
    - If Drive documents contain relevant information (relevance score > 0.4), uses Drive context
    - If Drive lacks relevant information, automatically falls back to Gemini's general knowledge
-5. **Response Generation**: Sends context to Gemini AI (with automatic retry on temporary failures) to generate an accurate answer
-6. **Source Attribution**: Shows which documents were used (📄 for Drive sources, 🌐 for general knowledge)
+6. **Response Generation**: Sends context to Gemini AI (with automatic retry on temporary failures) to generate an accurate answer
+7. **Source Attribution**: Shows which documents were used (📄 for Drive sources, 🌐 for general knowledge)
 
 ## Architecture
 
@@ -157,7 +161,7 @@ Relevance Scoring (filters chunks with score > 0.4)
 
 **Solution**:
 1. Verify the folder ID is correct
-2. Ensure the folder contains `.txt` files
+2. Ensure the folder contains supported files (TXT, PDF, or JPG)
 3. Check that the service account has access to the folder
 4. Make sure the folder is shared with the service account email
 
@@ -186,16 +190,20 @@ Relevance Scoring (filters chunks with score > 0.4)
 - [x] Text file support (.txt)
 - [x] Source attribution
 
-### Phase 2 (In Progress)
+### Phase 2 ✅
 - [x] Extended knowledge retrieval (use Gemini's knowledge when Drive lacks info) ✅
-- [ ] OpenAI validation agent
-- [ ] "Use only Google Drive" command support
 
-### Phase 3 (Planned)
-- [ ] PDF file support
-- [ ] Image OCR support (.jpg)
+### Phase 3 (In Progress)
+- [x] PDF file support ✅
+- [x] Image OCR support (.jpg) ✅
 - [ ] Document preview in UI
 - [ ] Deployment to Hugging Face Spaces
+
+### Phase 4 (Planned)
+- [ ] OpenAI validation agent
+- [ ] "Use only Google Drive" command support
+- [ ] Scanned PDF OCR support
+- [ ] PNG image support
 
 ## Technologies Used
 
@@ -203,6 +211,10 @@ Relevance Scoring (filters chunks with score > 0.4)
 - **LLM**: Google Gemini AI (gemini-2.0-flash-exp with retry logic and extended knowledge)
 - **Cloud Storage**: Google Drive API
 - **Authentication**: Google Service Account
+- **Document Processing**:
+  - pypdf: PDF text extraction
+  - pytesseract: OCR for image text extraction
+  - Pillow (PIL): Image processing
 - **Language**: Python 3.11+
 
 ## Contributing
