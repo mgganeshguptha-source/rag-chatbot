@@ -119,7 +119,7 @@ def initialize_session():
         return False
 
 # Main UI
-st.title("🤖 RAG Chatbot for Google Drive")
+st.title("🤖 Ganesh's RAG Chatbot for Google Drive")
 st.markdown("""
 Ask questions about your documents stored in Google Drive. The chatbot will search through your documents and provide relevant answers.
 """)
