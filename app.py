@@ -20,6 +20,10 @@ try:
     from rag_pipeline import RAGPipeline
     print("DEBUG: rag_pipeline imported successfully", file=sys.stderr)
     
+    print("DEBUG: Importing web_content_service...", file=sys.stderr)
+    from web_content_service import WebContentService
+    print("DEBUG: web_content_service imported successfully", file=sys.stderr)
+    
 except Exception as e:
     print(f"DEBUG: Import error: {str(e)}", file=sys.stderr)
     import traceback
@@ -29,7 +33,7 @@ except Exception as e:
 # Page configuration
 print("DEBUG: Setting page config...", file=sys.stderr)
 st.set_page_config(
-    page_title="RAG Chatbot for Google Drive",
+    page_title="Ganesh's RAG Chatbot for Google Drive",
     page_icon="🤖",
     layout="centered",
     initial_sidebar_state="collapsed"
@@ -157,7 +161,19 @@ if prompt := st.chat_input("Ask a question about your documents..."):
     with st.chat_message("assistant"):
         with st.spinner("Thinking..."):
             try:
-                response = rag_pipeline.generate_response(prompt)
+                # Detect URLs in the query
+                urls = WebContentService.detect_urls(prompt)
+                web_content = None
+                
+                # Fetch web content if URLs found
+                if urls:
+                    with st.spinner(f"Fetching content from {len(urls)} web link(s)..."):
+                        web_content = WebContentService.fetch_all_urls(urls)
+                        if web_content:
+                            st.info(f"🔗 Retrieved content from {len(web_content)} web source(s)")
+                
+                # Generate response with web content
+                response = rag_pipeline.generate_response(prompt, external_web_content=web_content)
                 st.markdown(response)
                 st.session_state.messages.append({"role": "assistant", "content": response})
             except Exception as e:
