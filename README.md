@@ -8,7 +8,8 @@ A Retrieval-Augmented Generation (RAG) chatbot that answers questions based on d
 - 📁 **Google Drive Integration**: Securely connects to your specified Google Drive folder
 - 🔍 **Smart Document Search**: Uses keyword-based retrieval to find relevant information
 - 💬 **Context-Aware Responses**: Generates answers based on document content using Gemini AI
-- 🎯 **Source Attribution**: Shows which documents were used to generate each answer (📄 for Drive, 🌐 for general knowledge)
+- 🎯 **Source Attribution**: Shows which documents were used to generate each answer (📄 for Drive, 🔗 for web links, 🌐 for general knowledge)
+- 🔗 **Web Content Integration**: Automatically detects URLs in your questions and fetches content from those web pages to enhance answers
 - 🌐 **Extended Knowledge**: Automatically falls back to Gemini's general knowledge when Drive documents don't contain the answer
 - ⚡ **Auto-Initialize**: Automatically loads documents on startup
 - 🔄 **Retry Logic**: Automatic retry mechanism for handling temporary API failures
@@ -103,12 +104,20 @@ The application will:
    - PDF files: Text extraction using pypdf library
    - JPG files: OCR text extraction using pytesseract
 3. **Text Chunking**: Splits documents into manageable chunks with overlap for better context
-4. **Query Processing**: When you ask a question, the system searches for relevant chunks using keyword matching
+4. **Query Processing**: When you ask a question:
+   - Searches Drive documents for relevant chunks using keyword matching
+   - Automatically detects URLs in your question (up to 2 URLs)
+   - Fetches and extracts content from detected web pages
 5. **Smart Routing**: 
    - If Drive documents contain relevant information (relevance score > 0.4), uses Drive context
-   - If Drive lacks relevant information, automatically falls back to Gemini's general knowledge
-6. **Response Generation**: Sends context to Gemini AI (with automatic retry on temporary failures) to generate an accurate answer
-7. **Source Attribution**: Shows which documents were used (📄 for Drive sources, 🌐 for general knowledge)
+   - If URLs detected, fetches and combines web content with Drive context
+   - If both Drive and web lack relevant information, falls back to Gemini's general knowledge
+6. **Response Generation**: Sends combined context (Drive + Web) to Gemini AI (with automatic retry on temporary failures) to generate an accurate answer
+7. **Source Attribution**: Shows which sources were used:
+   - 📄 for Drive sources
+   - 🔗 for web links
+   - 🌐 for general knowledge
+   - Responses can combine multiple source types
 
 ## Architecture
 
@@ -193,13 +202,14 @@ Relevance Scoring (filters chunks with score > 0.4)
 ### Phase 2 ✅
 - [x] Extended knowledge retrieval (use Gemini's knowledge when Drive lacks info) ✅
 
-### Phase 3 (In Progress)
+### Phase 3 ✅
 - [x] PDF file support ✅
 - [x] Image OCR support (.jpg) ✅
-- [ ] Document preview in UI
-- [ ] Deployment to Hugging Face Spaces
+- [x] Web content integration ✅
 
 ### Phase 4 (Planned)
+- [ ] Document preview in UI
+- [ ] Deployment to Hugging Face Spaces
 - [ ] OpenAI validation agent
 - [ ] "Use only Google Drive" command support
 - [ ] Scanned PDF OCR support
@@ -215,6 +225,9 @@ Relevance Scoring (filters chunks with score > 0.4)
   - pypdf: PDF text extraction
   - pytesseract: OCR for image text extraction
   - Pillow (PIL): Image processing
+- **Web Content Retrieval**:
+  - requests: HTTP client for fetching web pages
+  - BeautifulSoup4: HTML parsing and content extraction
 - **Language**: Python 3.11+
 
 ## Contributing
