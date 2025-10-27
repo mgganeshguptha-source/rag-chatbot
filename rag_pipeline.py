@@ -4,6 +4,7 @@ import time
 from typing import List, Dict, Optional
 from google import genai
 from google.genai import types
+from web_content_service import WebContentService
 
 class RAGPipeline:
     """Simplified RAG pipeline for document-based Q&A using Gemini AI"""
@@ -179,18 +180,39 @@ class RAGPipeline:
             return response.text.strip()
         return None
     
-    def generate_response(self, query: str) -> str:
-        """Generate a response using RAG pipeline with optional extended knowledge fallback"""
+    def generate_response(self, query: str, external_web_content: Optional[List[Dict[str, str]]] = None) -> str:
+        """Generate a response using RAG pipeline with optional web content and extended knowledge fallback"""
         try:
             print(f"🤔 Processing query: {query[:100]}...")
             
             # Retrieve relevant chunks from Drive documents
             relevant_chunks = self._retrieve_relevant_chunks(query, top_k=5)
             
-            # Define minimum relevance threshold (stricter to avoid false positives)
-            RELEVANCE_THRESHOLD = 0.4
+            # Define thresholds
+            URL_DETECTION_THRESHOLD = 0.2  # Lower threshold for URL detection
+            RELEVANCE_THRESHOLD = 0.4  # Stricter threshold for answer synthesis
             
-            # Filter chunks by relevance threshold
+            # Extract URLs from ALL relevant chunks (using lower threshold)
+            # This ensures we find URLs even if the chunk isn't highly relevant by keywords
+            drive_web_content = []
+            url_candidate_chunks = [
+                chunk for chunk in relevant_chunks
+                if chunk['score'] > URL_DETECTION_THRESHOLD
+            ]
+            
+            if url_candidate_chunks:
+                print("🔍 Scanning Drive documents for URLs...")
+                # Combine text from all candidate chunks to search for URLs
+                drive_text = " ".join([chunk['content'] for chunk in url_candidate_chunks])
+                drive_urls = WebContentService.detect_urls(drive_text)
+                
+                if drive_urls:
+                    print(f"🔗 Found {len(drive_urls)} URL(s) in Drive documents")
+                    drive_web_content = WebContentService.fetch_all_urls(drive_urls)
+                    if drive_web_content:
+                        print(f"✅ Fetched content from {len(drive_web_content)} Drive-mentioned URL(s)")
+            
+            # Filter chunks by stricter relevance threshold for answer synthesis
             filtered_chunks = [
                 chunk for chunk in relevant_chunks
                 if chunk['score'] > RELEVANCE_THRESHOLD
@@ -199,31 +221,63 @@ class RAGPipeline:
             # Check if we have high-quality Drive information
             # Require at least one chunk with good relevance score
             has_drive_info = len(filtered_chunks) > 0 and filtered_chunks[0]['score'] > 0.4
+            has_web_info = external_web_content is not None and len(external_web_content) > 0
+            has_drive_web_info = len(drive_web_content) > 0
             
-            if has_drive_info:
-                # Use Drive documents to answer
-                print(f"📄 Found {len(filtered_chunks)} relevant chunks in Drive documents")
+            if has_drive_info or has_web_info or has_drive_web_info:
+                # Use Drive documents and/or web content to answer
+                if has_drive_info:
+                    print(f"📄 Found {len(filtered_chunks)} relevant chunks in Drive documents")
+                if has_web_info:
+                    print(f"🔗 Found {len(external_web_content)} web sources from user query")
+                if has_drive_web_info:
+                    print(f"🔗 Found {len(drive_web_content)} web sources from Drive documents")
                 
                 # Prepare context from relevant chunks
                 context_parts = []
-                sources = set()
+                drive_sources = set()
+                web_sources_user = []
+                web_sources_drive = []
                 
-                for chunk in filtered_chunks[:3]:  # Use top 3 chunks
-                    context_parts.append(chunk['content'])
-                    sources.add(chunk['document_name'])
+                # Add Drive context
+                if has_drive_info:
+                    context_parts.append("=== Information from Google Drive Documents ===")
+                    for chunk in filtered_chunks[:3]:  # Use top 3 chunks
+                        context_parts.append(chunk['content'])
+                        drive_sources.add(chunk['document_name'])
+                
+                # Add web content from Drive-mentioned URLs
+                if has_drive_web_info:
+                    context_parts.append("\n=== Information from URLs mentioned in Drive Documents ===")
+                    for web_item in drive_web_content:
+                        context_parts.append(f"URL: {web_item['url']}\nTitle: {web_item['title']}\nContent: {web_item['content']}")
+                        web_sources_drive.append(web_item['url'])
+                
+                # Add web content from user query
+                if has_web_info:
+                    context_parts.append("\n=== Information from URLs in Your Question ===")
+                    for web_item in external_web_content:
+                        context_parts.append(f"URL: {web_item['url']}\nTitle: {web_item['title']}\nContent: {web_item['content']}")
+                        web_sources_user.append(web_item['url'])
                 
                 context = "\n\n".join(context_parts)
-                source_list = ", ".join(sorted(sources))
                 
-                # Create prompt for Gemini with Drive context
-                prompt = f"""Based on the following context from documents, please answer the user's question. If the context doesn't contain enough information to answer the question, respond with "No relevant information found in the source."
+                # Create prompt for Gemini with combined context
+                source_count = sum([has_drive_info, has_web_info, has_drive_web_info])
+                if source_count > 1:
+                    instruction = "Based on the following context from multiple sources (Google Drive documents and web links), please answer the user's question. Synthesize information from all sources where relevant."
+                elif has_drive_info:
+                    instruction = "Based on the following context from Google Drive documents, please answer the user's question."
+                else:
+                    instruction = "Based on the following context from web links, please answer the user's question."
+                
+                prompt = f"""{instruction}
 
-Context from documents:
 {context}
 
 User question: {query}
 
-Please provide a helpful and accurate answer based only on the information provided in the context. If you use specific information from the context, be precise and factual."""
+Please provide a helpful and accurate answer based on the information provided. If you use specific information from the context, be precise and factual."""
                 
                 # Generate response using Gemini
                 response_text = self._call_gemini_with_retry(prompt)
@@ -231,12 +285,12 @@ Please provide a helpful and accurate answer based only on the information provi
                 if not response_text:
                     return "Unable to generate response at this time. Please try again."
                 
-                # Check if Gemini couldn't answer from Drive context
+                # Check if Gemini couldn't answer from provided context
                 # If so, and extended knowledge is enabled, try general knowledge
                 no_info_phrases = ["no relevant information found", "no information found", "not enough information"]
                 if any(phrase in response_text.lower() for phrase in no_info_phrases):
                     if self.use_extended_knowledge:
-                        print("🌐 Drive context insufficient, switching to general knowledge...")
+                        print("🌐 Provided context insufficient, switching to general knowledge...")
                         # Fall back to general knowledge
                         gk_prompt = f"""Please answer the following question based on your general knowledge. Provide a clear, accurate, and helpful response.
 
@@ -246,14 +300,35 @@ Please provide a comprehensive answer."""
                         
                         gk_response = self._call_gemini_with_retry(gk_prompt)
                         if gk_response:
-                            gk_response += "\n\n*🌐 Note: This answer is based on general knowledge, as no relevant information was found in your Google Drive documents.*"
+                            gk_response += "\n\n*🌐 Note: This answer is based on general knowledge, as no relevant information was found in the provided sources.*"
                             return gk_response
                 
-                # Add source attribution for Drive documents
-                if len(sources) == 1:
-                    response_text += f"\n\n*📄 Source: {source_list}*"
-                else:
-                    response_text += f"\n\n*📄 Sources: {source_list}*"
+                # Add source attribution
+                attribution_parts = []
+                
+                if has_drive_info:
+                    drive_source_list = ", ".join(sorted(drive_sources))
+                    if len(drive_sources) == 1:
+                        attribution_parts.append(f"📄 Drive Source: {drive_source_list}")
+                    else:
+                        attribution_parts.append(f"📄 Drive Sources: {drive_source_list}")
+                
+                if has_drive_web_info:
+                    if len(web_sources_drive) == 1:
+                        attribution_parts.append(f"🔗 Web Link (from Drive): {web_sources_drive[0]}")
+                    else:
+                        web_list = "\n  • ".join(web_sources_drive)
+                        attribution_parts.append(f"🔗 Web Links (from Drive):\n  • {web_list}")
+                
+                if has_web_info:
+                    if len(web_sources_user) == 1:
+                        attribution_parts.append(f"🔗 Web Link (from your question): {web_sources_user[0]}")
+                    else:
+                        web_list = "\n  • ".join(web_sources_user)
+                        attribution_parts.append(f"🔗 Web Links (from your question):\n  • {web_list}")
+                
+                if attribution_parts:
+                    response_text += "\n\n*" + "\n".join(attribution_parts) + "*"
                 
                 return response_text
             

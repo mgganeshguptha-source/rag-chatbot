@@ -17,14 +17,22 @@ Preferred communication style: Simple, everyday language.
 - **Caching Strategy**: Resource-level caching (`@st.cache_resource`) for expensive operations like service initialization and document loading
 
 ### Backend Architecture
-- **RAG Pipeline**: Keyword-based document retrieval with AI-powered response generation
+- **RAG Pipeline**: Keyword-based document retrieval with AI-powered response generation and web content integration
 - **Text Processing**: Document chunking with configurable overlap (1000 char chunks, 100 char overlap) for optimal context retrieval
 - **Search Method**: Keyword matching with similarity scoring to identify relevant document chunks
-- **Smart Routing**: Dual-path response generation:
+- **Web Content Integration**: 
+  - URL Detection: Regex-based detection of URLs in user queries (max 2 URLs per query) AND automatic detection of URLs in Drive document chunks
+  - URL Discovery Threshold: Scans all relevant Drive chunks with score > 0.2 to find URLs, even if chunks aren't highly relevant by keywords
+  - Content Fetching: HTTP requests with timeout (10s) and size limits (1MB)
+  - HTML Extraction: BeautifulSoup-based content parsing and cleaning
+  - Security: Domain blocking list and content-type validation
+  - Smart Integration: Users don't need to provide URLs - chatbot automatically finds and fetches URLs mentioned in Drive documents when relevant to the query
+- **Smart Routing**: Multi-source response generation:
   - Drive documents with high relevance (score > 0.4) → Drive-based answers with 📄 attribution
-  - No relevant Drive content → Automatic fallback to Gemini's general knowledge with 🌐 note
-- **Extended Knowledge**: Configurable fallback to general AI knowledge when Drive lacks relevant information
-- **Response Generation**: Context-aware answer synthesis using retrieved chunks or general knowledge as input to Gemini AI
+  - URLs detected in query → Fetch and combine web content with Drive context, show 🔗 attribution
+  - No relevant Drive/web content → Automatic fallback to Gemini's general knowledge with 🌐 note
+- **Extended Knowledge**: Configurable fallback to general AI knowledge when Drive and web lack relevant information
+- **Response Generation**: Context-aware answer synthesis combining Drive chunks, web content, and/or general knowledge
 
 ### Configuration Management
 - **Environment-based Config**: Centralized `Config` class managing all environment variables
@@ -67,6 +75,8 @@ Preferred communication style: Simple, everyday language.
 - **pypdf**: PDF text extraction
 - **pytesseract**: OCR engine wrapper for image text extraction
 - **Pillow (PIL)**: Python Imaging Library for image processing
+- **requests**: HTTP client for web content fetching
+- **beautifulsoup4**: HTML parsing and content extraction
 
 ### Data Storage
 - **In-Memory Storage**: Document chunks and session data stored in application memory
@@ -77,9 +87,17 @@ Preferred communication style: Simple, everyday language.
 - **Text Extraction**: Multi-format document processing
   - TXT: Direct UTF-8/Latin-1 decoding
   - PDF: pypdf library for text-based PDFs
-  - JPG/JPEG: pytesseract OCR for image text extraction
+  - JPG/JPEG: pytesseract OCR for image text extraction with defensive error handling
 - **Supported File Types**: .txt, .pdf (text-based), .jpg/.jpeg
 - **Unsupported**: Image-based/scanned PDFs (no OCR for PDFs yet)
+- **OCR Safety Features**: Production-ready defensive programming to handle problematic images gracefully
+  - File size validation (max 20MB) - skips extremely large images
+  - Image verification before OCR processing using PIL Image.verify()
+  - Dimension checks (max 10000x10000 pixels) - prevents memory issues
+  - Format conversion for problematic image modes (converts to RGB/L)
+  - Complete resource cleanup on all code paths (closes file handles properly)
+  - Graceful skip-and-continue behavior - corrupted/problematic images are logged and skipped without crashing the entire document loading process
+  - Separate error handling for validation vs OCR operations for granular failure reporting
 
 ### Required Environment Variables
 1. `GEMINI_API_KEY`: API key for Google Gemini AI service

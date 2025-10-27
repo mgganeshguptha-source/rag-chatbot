@@ -5,3 +5,5 @@ google-genai>=1.45.0
 pypdf
 pytesseract
 pillow
+requests
+beautifulsoup4
