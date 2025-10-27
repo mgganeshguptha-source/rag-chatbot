@@ -61,24 +61,85 @@ class TextExtractor:
         Returns:
             Extracted text or None if extraction fails
         """
+        image = None
         try:
+            # Validate file size (skip extremely large files that might cause issues)
+            MAX_IMAGE_SIZE = 20 * 1024 * 1024  # 20MB
+            if len(file_content) > MAX_IMAGE_SIZE:
+                print(f"⚠️ Image too large ({len(file_content)} bytes), skipping OCR")
+                return None
+            
             # Create a file-like object from bytes
             image_file = io.BytesIO(file_content)
             
-            # Open image
-            image = Image.open(image_file)
+            # Open and validate image
+            temp_image = None
+            try:
+                temp_image = Image.open(image_file)
+                
+                # Verify image can be loaded
+                temp_image.verify()
+                temp_image.close()  # Close after verify
+                temp_image = None
+                
+                # Reopen image after verify (verify closes it)
+                image_file.seek(0)
+                image = Image.open(image_file)
+                
+                # Check image dimensions (skip very large images that might cause OCR issues)
+                MAX_DIMENSION = 10000
+                if image.width > MAX_DIMENSION or image.height > MAX_DIMENSION:
+                    print(f"⚠️ Image dimensions too large ({image.width}x{image.height}), skipping OCR")
+                    image.close()
+                    return None
+                
+                # Convert to RGB if needed (some formats cause issues)
+                if image.mode not in ('RGB', 'L'):
+                    image = image.convert('RGB')
+                    
+            except Exception as img_error:
+                print(f"⚠️ Invalid or corrupted image file: {str(img_error)}")
+                # Clean up temp_image if it's still open
+                if temp_image:
+                    try:
+                        temp_image.close()
+                    except:
+                        pass
+                # Clean up image if it's open
+                if image:
+                    try:
+                        image.close()
+                    except:
+                        pass
+                return None
             
-            # Perform OCR
-            text = pytesseract.image_to_string(image)
+            # Perform OCR with additional safety
+            try:
+                text = pytesseract.image_to_string(image)
+            except Exception as ocr_error:
+                print(f"⚠️ OCR failed for image: {str(ocr_error)}")
+                return None
+            finally:
+                # Clean up
+                if image:
+                    try:
+                        image.close()
+                    except:
+                        pass
             
-            if not text.strip():
+            if not text or not text.strip():
                 print("⚠️ No text detected in image (might be blank or low quality)")
                 return None
             
-            return text
+            return text.strip()
             
         except Exception as e:
             print(f"❌ Error extracting text from image: {str(e)}")
+            if image:
+                try:
+                    image.close()
+                except:
+                    pass
             return None
     
     @staticmethod

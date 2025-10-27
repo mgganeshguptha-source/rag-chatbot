@@ -4,6 +4,7 @@ import time
 from typing import List, Dict, Optional
 from google import genai
 from google.genai import types
+from web_content_service import WebContentService
 
 class RAGPipeline:
     """Simplified RAG pipeline for document-based Q&A using Gemini AI"""
@@ -187,10 +188,31 @@ class RAGPipeline:
             # Retrieve relevant chunks from Drive documents
             relevant_chunks = self._retrieve_relevant_chunks(query, top_k=5)
             
-            # Define minimum relevance threshold (stricter to avoid false positives)
-            RELEVANCE_THRESHOLD = 0.4
+            # Define thresholds
+            URL_DETECTION_THRESHOLD = 0.2  # Lower threshold for URL detection
+            RELEVANCE_THRESHOLD = 0.4  # Stricter threshold for answer synthesis
             
-            # Filter chunks by relevance threshold
+            # Extract URLs from ALL relevant chunks (using lower threshold)
+            # This ensures we find URLs even if the chunk isn't highly relevant by keywords
+            drive_web_content = []
+            url_candidate_chunks = [
+                chunk for chunk in relevant_chunks
+                if chunk['score'] > URL_DETECTION_THRESHOLD
+            ]
+            
+            if url_candidate_chunks:
+                print("🔍 Scanning Drive documents for URLs...")
+                # Combine text from all candidate chunks to search for URLs
+                drive_text = " ".join([chunk['content'] for chunk in url_candidate_chunks])
+                drive_urls = WebContentService.detect_urls(drive_text)
+                
+                if drive_urls:
+                    print(f"🔗 Found {len(drive_urls)} URL(s) in Drive documents")
+                    drive_web_content = WebContentService.fetch_all_urls(drive_urls)
+                    if drive_web_content:
+                        print(f"✅ Fetched content from {len(drive_web_content)} Drive-mentioned URL(s)")
+            
+            # Filter chunks by stricter relevance threshold for answer synthesis
             filtered_chunks = [
                 chunk for chunk in relevant_chunks
                 if chunk['score'] > RELEVANCE_THRESHOLD
@@ -200,18 +222,22 @@ class RAGPipeline:
             # Require at least one chunk with good relevance score
             has_drive_info = len(filtered_chunks) > 0 and filtered_chunks[0]['score'] > 0.4
             has_web_info = external_web_content is not None and len(external_web_content) > 0
+            has_drive_web_info = len(drive_web_content) > 0
             
-            if has_drive_info or has_web_info:
+            if has_drive_info or has_web_info or has_drive_web_info:
                 # Use Drive documents and/or web content to answer
                 if has_drive_info:
                     print(f"📄 Found {len(filtered_chunks)} relevant chunks in Drive documents")
                 if has_web_info:
-                    print(f"🔗 Found {len(external_web_content)} web sources")
+                    print(f"🔗 Found {len(external_web_content)} web sources from user query")
+                if has_drive_web_info:
+                    print(f"🔗 Found {len(drive_web_content)} web sources from Drive documents")
                 
                 # Prepare context from relevant chunks
                 context_parts = []
                 drive_sources = set()
-                web_sources = []
+                web_sources_user = []
+                web_sources_drive = []
                 
                 # Add Drive context
                 if has_drive_info:
@@ -220,18 +246,26 @@ class RAGPipeline:
                         context_parts.append(chunk['content'])
                         drive_sources.add(chunk['document_name'])
                 
-                # Add web content
+                # Add web content from Drive-mentioned URLs
+                if has_drive_web_info:
+                    context_parts.append("\n=== Information from URLs mentioned in Drive Documents ===")
+                    for web_item in drive_web_content:
+                        context_parts.append(f"URL: {web_item['url']}\nTitle: {web_item['title']}\nContent: {web_item['content']}")
+                        web_sources_drive.append(web_item['url'])
+                
+                # Add web content from user query
                 if has_web_info:
-                    context_parts.append("\n=== Information from Web Links ===")
+                    context_parts.append("\n=== Information from URLs in Your Question ===")
                     for web_item in external_web_content:
                         context_parts.append(f"URL: {web_item['url']}\nTitle: {web_item['title']}\nContent: {web_item['content']}")
-                        web_sources.append(web_item['url'])
+                        web_sources_user.append(web_item['url'])
                 
                 context = "\n\n".join(context_parts)
                 
                 # Create prompt for Gemini with combined context
-                if has_drive_info and has_web_info:
-                    instruction = "Based on the following context from both Google Drive documents and web links, please answer the user's question. Synthesize information from both sources where relevant."
+                source_count = sum([has_drive_info, has_web_info, has_drive_web_info])
+                if source_count > 1:
+                    instruction = "Based on the following context from multiple sources (Google Drive documents and web links), please answer the user's question. Synthesize information from all sources where relevant."
                 elif has_drive_info:
                     instruction = "Based on the following context from Google Drive documents, please answer the user's question."
                 else:
@@ -279,12 +313,19 @@ Please provide a comprehensive answer."""
                     else:
                         attribution_parts.append(f"📄 Drive Sources: {drive_source_list}")
                 
-                if has_web_info:
-                    if len(web_sources) == 1:
-                        attribution_parts.append(f"🔗 Web Source: {web_sources[0]}")
+                if has_drive_web_info:
+                    if len(web_sources_drive) == 1:
+                        attribution_parts.append(f"🔗 Web Link (from Drive): {web_sources_drive[0]}")
                     else:
-                        web_list = "\n  • ".join(web_sources)
-                        attribution_parts.append(f"🔗 Web Sources:\n  • {web_list}")
+                        web_list = "\n  • ".join(web_sources_drive)
+                        attribution_parts.append(f"🔗 Web Links (from Drive):\n  • {web_list}")
+                
+                if has_web_info:
+                    if len(web_sources_user) == 1:
+                        attribution_parts.append(f"🔗 Web Link (from your question): {web_sources_user[0]}")
+                    else:
+                        web_list = "\n  • ".join(web_sources_user)
+                        attribution_parts.append(f"🔗 Web Links (from your question):\n  • {web_list}")
                 
                 if attribution_parts:
                     response_text += "\n\n*" + "\n".join(attribution_parts) + "*"

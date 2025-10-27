@@ -21,10 +21,12 @@ Preferred communication style: Simple, everyday language.
 - **Text Processing**: Document chunking with configurable overlap (1000 char chunks, 100 char overlap) for optimal context retrieval
 - **Search Method**: Keyword matching with similarity scoring to identify relevant document chunks
 - **Web Content Integration**: 
-  - URL Detection: Regex-based detection of URLs in user queries (max 2 URLs per query)
+  - URL Detection: Regex-based detection of URLs in user queries (max 2 URLs per query) AND automatic detection of URLs in Drive document chunks
+  - URL Discovery Threshold: Scans all relevant Drive chunks with score > 0.2 to find URLs, even if chunks aren't highly relevant by keywords
   - Content Fetching: HTTP requests with timeout (10s) and size limits (1MB)
   - HTML Extraction: BeautifulSoup-based content parsing and cleaning
   - Security: Domain blocking list and content-type validation
+  - Smart Integration: Users don't need to provide URLs - chatbot automatically finds and fetches URLs mentioned in Drive documents when relevant to the query
 - **Smart Routing**: Multi-source response generation:
   - Drive documents with high relevance (score > 0.4) → Drive-based answers with 📄 attribution
   - URLs detected in query → Fetch and combine web content with Drive context, show 🔗 attribution
@@ -85,9 +87,17 @@ Preferred communication style: Simple, everyday language.
 - **Text Extraction**: Multi-format document processing
   - TXT: Direct UTF-8/Latin-1 decoding
   - PDF: pypdf library for text-based PDFs
-  - JPG/JPEG: pytesseract OCR for image text extraction
+  - JPG/JPEG: pytesseract OCR for image text extraction with defensive error handling
 - **Supported File Types**: .txt, .pdf (text-based), .jpg/.jpeg
 - **Unsupported**: Image-based/scanned PDFs (no OCR for PDFs yet)
+- **OCR Safety Features**: Production-ready defensive programming to handle problematic images gracefully
+  - File size validation (max 20MB) - skips extremely large images
+  - Image verification before OCR processing using PIL Image.verify()
+  - Dimension checks (max 10000x10000 pixels) - prevents memory issues
+  - Format conversion for problematic image modes (converts to RGB/L)
+  - Complete resource cleanup on all code paths (closes file handles properly)
+  - Graceful skip-and-continue behavior - corrupted/problematic images are logged and skipped without crashing the entire document loading process
+  - Separate error handling for validation vs OCR operations for granular failure reporting
 
 ### Required Environment Variables
 1. `GEMINI_API_KEY`: API key for Google Gemini AI service
