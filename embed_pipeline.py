@@ -18,8 +18,7 @@ import sys
 import argparse
 from typing import List, Dict
 from drive_service import GoogleDriveService
-from postgres_embedding_store import PostgresEmbeddingStore
-from embedding_store import compute_text_hash, compute_document_hash
+from postgres_embedding_store import PostgresEmbeddingStore, compute_text_hash, compute_document_hash
 import re
 
 try:

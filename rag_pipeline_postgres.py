@@ -10,8 +10,7 @@ from typing import List, Dict, Optional, Any
 from google import genai  # type: ignore
 from google.genai import types  # type: ignore
 from web_content_service import WebContentService
-from postgres_embedding_store import PostgresEmbeddingStore
-from embedding_store import compute_text_hash
+from postgres_embedding_store import PostgresEmbeddingStore, compute_text_hash
 
 try:
     from sentence_transformers import SentenceTransformer  # type: ignore
