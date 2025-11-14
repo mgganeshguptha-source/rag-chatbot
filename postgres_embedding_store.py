@@ -5,11 +5,26 @@ Replaces JSON cache with persistent database storage.
 
 import os
 import json
+import hashlib
 from typing import List, Dict, Optional, Any
 import psycopg2
 from psycopg2.extras import execute_batch, RealDictCursor
 from psycopg2.extensions import register_adapter, AsIs
 import numpy as np
+
+
+def compute_text_hash(text: str) -> str:
+    """Compute stable hash for text content"""
+    return hashlib.sha256(text.encode('utf-8')).hexdigest()[:16]
+
+
+def compute_document_hash(document: Dict[str, str]) -> str:
+    """Compute stable fingerprint for document (id + content hash)"""
+    doc_id = document.get('id', '')
+    content = document.get('content', '')
+    
+    combined = f"{doc_id}:{compute_text_hash(content)}"
+    return hashlib.sha256(combined.encode('utf-8')).hexdigest()[:16]
 
 
 def adapt_numpy_array(numpy_array):
