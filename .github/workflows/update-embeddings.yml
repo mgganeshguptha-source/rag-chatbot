@@ -1,0 +1,70 @@
+name: Update RAG Embeddings
+
+# Triggers:
+# - Manual dispatch (click "Run workflow" button)
+# - Push to main branch (when documents change)
+# - Scheduled: daily at 2 AM UTC
+on:
+  workflow_dispatch:
+    inputs:
+      force_rebuild:
+        description: 'Force rebuild all embeddings'
+        required: false
+        type: boolean
+        default: false
+  push:
+    branches: [ main ]
+    paths:
+      - 'embed_pipeline.py'
+      - 'drive_service.py'
+      - 'postgres_embedding_store.py'
+      - 'embedding_store.py'
+  schedule:
+    - cron: '0 2 * * *'  # Daily at 2 AM UTC
+
+jobs:
+  update-embeddings:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install sentence-transformers psycopg2-binary google-api-python-client google-auth requests beautifulsoup4 pypdf pytesseract pillow
+      
+      - name: Run embedding pipeline
+        env:
+          GOOGLE_SERVICE_ACCOUNT_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+          SUPABASE_DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          if [ "${{ github.event.inputs.force_rebuild }}" == "true" ]; then
+            echo "Running pipeline with force rebuild..."
+            python embed_pipeline.py --force-rebuild
+          else
+            echo "Running pipeline with incremental updates..."
+            python embed_pipeline.py
+          fi
+      
+      - name: Show pipeline summary
+        if: success()
+        run: |
+          echo "✅ Embedding pipeline completed successfully!"
+          echo "📊 Check the logs above for statistics"
+      
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "❌ Embedding pipeline failed!"
+          echo "Please check the logs for error details"

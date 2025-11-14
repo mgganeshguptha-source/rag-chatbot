@@ -13,13 +13,31 @@ Preferred communication style: Simple, everyday language.
 ### Frontend Architecture
 - **Framework**: Streamlit web application
 - **UI Pattern**: Chat-based interface with message history
-- **Session Management**: Streamlit session state for maintaining conversation context and initialization status
+- **Authentication**: OAuth 2.0 authentication with Google and GitHub providers (optional but recommended)
+  - Users must sign in before accessing the chatbot
+  - Session-based authentication state management
+  - User profile display with logout functionality
+- **Session Management**: Streamlit session state for maintaining conversation context, initialization status, and user authentication
 - **Caching Strategy**: Resource-level caching (`@st.cache_resource`) for expensive operations like service initialization and document loading
 
 ### Backend Architecture
-- **RAG Pipeline**: Keyword-based document retrieval with AI-powered response generation and web content integration
+- **RAG Pipeline**: Semantic vector search with Chroma database and AI-powered response generation
+- **Vector Database**: Chroma (embedded mode) storing 768-dimensional embeddings for semantic similarity search
 - **Text Processing**: Document chunking with configurable overlap (1000 char chunks, 100 char overlap) for optimal context retrieval
-- **Search Method**: Keyword matching with similarity scoring to identify relevant document chunks
+- **Search Method**: Cosine similarity on semantic embeddings for accurate retrieval (replaces keyword matching)
+- **Embedding Generation**: 
+  - **Model**: Local sentence-transformers (`all-MiniLM-L6-v2`) for 768-dim embeddings
+  - **Cost**: $0/month - fully local, no API calls, no quota limits
+  - **Performance**: Batch processing (32 chunks/batch) optimized for CPU
+  - **Cold Start**: Rebuilds Chroma from cached embeddings on restart (0 API calls)
+  - **Incremental Updates**: Only processes changed documents, preserves existing chunks
+- **Embedding Caching**: 
+  - **Storage**: JSON file (`.embeddings_cache.json`) with hash-indexed embeddings
+  - **Cache Keys**: SHA-256 hash of text content for deterministic lookup
+  - **Invalidation**: Document fingerprint-based (doc ID + content hash)
+  - **Architecture**: Swappable `EmbeddingStore` interface (Phase 2: migrate to PostgreSQL)
+  - **Persistence**: Survives app restarts, cleared on code rebuilds
+  - **Atomic Writes**: Temp file + rename pattern for data integrity
 - **Web Content Integration**: 
   - URL Detection: Regex-based detection of URLs in user queries (max 2 URLs per query) AND automatic detection of URLs in Drive document chunks
   - URL Discovery Threshold: Scans all relevant Drive chunks with score > 0.2 to find URLs, even if chunks aren't highly relevant by keywords
@@ -58,10 +76,12 @@ Preferred communication style: Simple, everyday language.
 
 ### APIs & Services
 - **Google Drive API v3**: Document retrieval from specified Drive folders
-- **Google Gemini AI API**: Natural language understanding and response generation
-  - Model: `gemini-2.0-flash-exp` (experimental model with extended capabilities)
+- **Google Gemini AI API**: LLM response generation only (NOT for embeddings)
+  - Chat Model: `gemini-2.0-flash-exp` (experimental model with extended capabilities)
   - Purpose: Converting retrieved context into coherent answers and providing general knowledge fallback
   - Retry Logic: 3 attempts with exponential backoff (1s, 2s, 4s) for handling rate limits and temporary unavailability
+  - Quota Handling: Graceful error messages for quota exhaustion (free tier has daily limits)
+  - **Cost**: Free tier usage for LLM generation (embeddings now local, $0 API cost)
 
 ### Authentication Services
 - **Google OAuth2 Service Account**: Server-to-server authentication for Drive access
@@ -69,9 +89,11 @@ Preferred communication style: Simple, everyday language.
 
 ### Python Libraries
 - **Streamlit**: Web application framework for the chat interface
+- **sentence-transformers**: Local embedding generation (all-MiniLM-L6-v2 model, 768-dim)
+- **chromadb**: Embedded vector database for semantic search
 - **google-api-python-client**: Google Drive API integration
 - **google-auth**: OAuth2 authentication handling
-- **google-genai**: Gemini AI client library
+- **google-genai**: Gemini AI client library (LLM generation only, not embeddings)
 - **pypdf**: PDF text extraction
 - **pytesseract**: OCR engine wrapper for image text extraction
 - **Pillow (PIL)**: Python Imaging Library for image processing

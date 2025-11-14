@@ -1,10 +1,13 @@
 import os
 import json
 import tempfile
+import time
+import socket
 from typing import List, Dict, Optional
 from googleapiclient.discovery import build
 from google.auth.exceptions import DefaultCredentialsError
 from google.oauth2 import service_account
+from googleapiclient.errors import HttpError
 from text_extractors import TextExtractor
 
 
@@ -19,6 +22,9 @@ class GoogleDriveService:
     def _initialize_service(self):
         """Initialize Google Drive service with authentication"""
         try:
+            # Set socket timeout globally for all HTTP requests (60 seconds)
+            socket.setdefaulttimeout(60.0)
+            
             # Get service account credentials from environment variable
             service_account_key = os.getenv("GOOGLE_SERVICE_ACCOUNT_KEY")
 
@@ -90,9 +96,28 @@ class GoogleDriveService:
 
                     print(f"📥 Loading: {file_name} ({file_type})")
 
-                    # Download file content
-                    file_content = self.service.files().get_media(
-                        fileId=file_id).execute()
+                    # Download file content with retry logic for SSL/network errors
+                    file_content = None
+                    max_retries = 3
+                    retry_delay = 1
+                    
+                    for attempt in range(max_retries):
+                        try:
+                            file_content = self.service.files().get_media(
+                                fileId=file_id).execute()
+                            break
+                        except Exception as download_error:
+                            if attempt < max_retries - 1:
+                                print(f"⚠️ Download attempt {attempt + 1} failed for {file_name}: {str(download_error)}")
+                                print(f"   Retrying in {retry_delay}s...")
+                                time.sleep(retry_delay)
+                                retry_delay *= 2  # Exponential backoff
+                            else:
+                                raise  # Re-raise on final attempt
+                    
+                    if file_content is None:
+                        print(f"⚠️ Failed to download {file_name} after {max_retries} attempts, skipping...")
+                        continue
 
                     # Extract text based on file type
                     content = None
